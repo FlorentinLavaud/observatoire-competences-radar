@@ -1,0 +1,13 @@
+# --- Supabase & Database ---
+supabase==2.4.0
+postgrest==0.10.7
+
+# --- Validation & Parsing ---
+pydantic==2.6.4
+
+# --- Network & Core ---
+requests==2.31.0
+urllib3==2.2.1
+
+# --- Interface & CLI ---
+tqdm==4.66.2

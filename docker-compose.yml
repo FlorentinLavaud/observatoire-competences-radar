@@ -1,0 +1,16 @@
+  api:
+    build: .
+    container_name: radar_api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres_db
+      - DB_PORT=5432
+      - DB_NAME=radar_db
+      - DB_USER=admin
+      - DB_PASSWORD=super_password_secret
+
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - postgres_db

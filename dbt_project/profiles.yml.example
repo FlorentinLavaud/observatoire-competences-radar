@@ -1,0 +1,7 @@
+radar_duckdb:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: target/radar.duckdb
+      threads: 1

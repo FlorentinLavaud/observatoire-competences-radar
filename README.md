@@ -23,15 +23,43 @@ Pipeline d'ingestion et transformation des offres d'emploi de la filière **indu
 
 ### Installation
 
+1. **Créer un environnement virtuel:**
+
+```bash
+python -m venv venv
+```
+
+2. **Activer l'environnement virtuel:**
+
+**Windows:**
+```bash
+venv\Scripts\activate
+```
+
+**macOS/Linux:**
+```bash
+source venv/bin/activate
+```
+
+3. **Installer les dépendances:**
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### Variables d'environnement
 
+Créer un fichier `.env` à la racine:
+
 ```bash
-export FRANCE_TRAVAIL_CLIENT_ID="votre_client_id"
-export FRANCE_TRAVAIL_SECRET_KEY="votre_secret_key"
+cp .env.example .env
+```
+
+Puis éditer avec vos identifiants:
+
+```
+FRANCE_TRAVAIL_CLIENT_ID=votre_client_id
+FRANCE_TRAVAIL_SECRET_KEY=votre_secret_key
 ```
 
 ### Exécution
@@ -95,26 +123,6 @@ data/
 
 ---
 
-## Variables d'environnement requises
-
-- `FRANCE_TRAVAIL_CLIENT_ID` — Identifiant API France Travail
-- `FRANCE_TRAVAIL_SECRET_KEY` — Clé secrète France Travail
-
-
-### Lancer Dagster / Dagit
-
-```bash
-dagster dev -w dagster/repository.py
-```
-
-### Exécuter le projet dbt (DuckDB)
-
-```bash
-dbt run --project-dir dbt_project --profiles-dir dbt_project
-```
-
----
-
 ## Architecture cible
 
 ```text
@@ -125,22 +133,13 @@ dbt run --project-dir dbt_project --profiles-dir dbt_project
            │
            ▼
    [ dbt + DuckDB ] (nettoyage, calcul des indices de tension)
-           │
-           ▼
-      [ FastAPI ] ────> [ Cache Redis ] (performance)
-           │
-           ▼
-[ Next.js + Tremor ] (le dashboard SaaS ultra-léché)
 ```
 
-### Composants ajoutés
+### Composants
 
 - `dagster/` : jobs et repository pour orchestrer l'ingestion
-- `dbt_project/` : modèle DuckDB / transformation analytique
-- `api/main.py` : API FastAPI avec cache Redis
-- `src/utils/redis_cache.py` : client Redis et cache JSON
-- `frontend/` : dashboard Next.js + Tremor
-- `docker-compose.yml` : ajout de Redis et Dagster
+- `dbt_project/` : modèles dbt pour transformation analytique
+- `src/` : code Python métier
 
 ---
 
@@ -153,9 +152,4 @@ dbt run --project-dir dbt_project --profiles-dir dbt_project
 
 ### Système de fichiers
 
-- Rotation journalière des logs
-- Fichier principal :
-
-```text
-logs/scraper.log
-```
+- Logs générés dans `logs/scraper.log` avec rotation journalière

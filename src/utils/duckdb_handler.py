@@ -1,5 +1,6 @@
 """Gestionnaire DuckDB pour la persistence des données."""
 import duckdb
+import json
 import os
 from pathlib import Path
 from src.utils.logger import logger
@@ -87,7 +88,7 @@ def save_offers_to_duckdb(conn: duckdb.DuckDBPyConnection, offers: list[dict], b
                     offer.get("date_publication"),
                     offer.get("date_creation"),
                     offer.get("date_modification"),
-                    str(offer)  # Stocker les données brutes en JSON
+                    json.dumps(offer, default=str)
                 ])
             
             logger.info(f"Lot {i // batch_size + 1} sauvegardé ({len(batch)} offres)")

@@ -36,13 +36,13 @@ class FranceTravailOfferParser(BaseModel):
         # Résolu via un attribut externe car l'alias direct sur objet imbriqué est lourd
         return None
 
-    def to_supabase_dict(self, raw_entry: Dict[str, Any]) -> Dict[str, Any]:
-        """Convertit l'objet parsé en dictionnaire plat pour la table Supabase 'offres'."""
+    def to_dict(self, raw_entry: Dict[str, Any]) -> Dict[str, Any]:
+        """Convertit l'objet parsé en dictionnaire plat normalisé."""
         # Extraction manuelle sûre des sous-objets pour l'entreprise
         entreprise_obj = raw_entry.get("entreprise", {})
         nom_acheteur = entreprise_obj.get("nom") if isinstance(entreprise_obj, dict) else None
 
-        # Conversion propre de la date ISO en string ISO interprétable par Postgres
+        # Conversion propre de la date ISO en string ISO interprétable
         try:
             dt = datetime.strptime(self.date_creation, "%Y-%m-%dT%H:%M:%SZ")
             date_parution = dt.isoformat()
@@ -51,7 +51,7 @@ class FranceTravailOfferParser(BaseModel):
 
         return {
             "id": self.id,
-            "source": "france_trail",
+            "source": "france_travail",
             "titre": self.titre,
             "description": self.description,
             "code_rome": self.code_rome,

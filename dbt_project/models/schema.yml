@@ -1,0 +1,30 @@
+version: 2
+
+sources:
+  - name: raw
+    tables:
+      - name: offres
+        description: "Table brute des offres France Travail"
+
+models:
+  - name: stg_offres
+    description: "Modèle de staging des offres brutes préparé pour les calculs analytiques."
+    columns:
+      - name: id
+        description: "Identifiant de l'offre"
+      - name: titre
+        description: "Titre de l'offre"
+      - name: code_rome
+        description: "Code ROME associé à l'emploi"
+      - name: code_naf
+        description: "Code NAF du secteur"
+      - name: secteur_activite
+        description: "Division INSEE de l'activité"
+
+  - name: offres_tension
+    description: "Modèle analytique des indices de tension du marché du travail."
+    columns:
+      - name: tension_index
+        description: "Score de tension calculé à partir des signaux de demande et d'offres manquantes."
+      - name: tension_segment
+        description: "Catégorie de tension dérivée du score."

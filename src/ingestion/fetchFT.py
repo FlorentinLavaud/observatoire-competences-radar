@@ -130,11 +130,11 @@ class FranceTravailManufacturingScraper:
             try:
                 # Validation structurelle automatique
                 parsed_offer = FranceTravailOfferParser(**raw_item)
-                # Transformation en dictionnaire plat conforme au schéma Supabase
-                validated_payloads.append(parsed_offer.to_supabase_dict(raw_item))
+                # Transformation en dictionnaire plat normalisé
+                validated_payloads.append(parsed_offer.to_dict(raw_item))
             except Exception as e:
                 logger.warning(f"Offre {raw_item.get('id', 'INCONNUE')} rejetée par validation Pydantic : {e}")
                 continue
 
-        logger.info(f"Validation terminée. {len(validated_payloads)} / {len(raw_offers)} offres prêtes pour l'insertion DB.")
+        logger.info(f"Validation terminée. {len(validated_payloads)} / {len(raw_offers)} offres prêtes pour la persistance.")
         return validated_payloads

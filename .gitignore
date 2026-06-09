@@ -216,3 +216,56 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Project Specific ---
+
+# Data files
+data/
+*.duckdb
+*.duckdb.wal
+*.parquet
+
+# dbt outputs
+target/
+dbt_packages/
+dbt-packages/
+
+# Dagster outputs
+.dagster/
+dagster_home/
+.dagster_*
+
+# Temporary files and directories
+temp_pip/
+temp_requirements/
+*.tmp
+.cache/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.bak
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db

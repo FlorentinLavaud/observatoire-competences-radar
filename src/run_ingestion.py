@@ -7,6 +7,14 @@ from src.utils.logger import logger
 from src.ingestion.fetchFT import FranceTravailManufacturingScraper
 from src.utils.duckdb_handler import get_duckdb_connection, init_schema, save_offers_to_duckdb, export_to_parquet
 
+from dotenv import load_dotenv
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+dotenv_path = os.path.join(project_root, ".env")
+if load_dotenv(dotenv_path):
+    logger.info(f"Variables d'environnement chargées depuis {dotenv_path}")
+else:
+    logger.warning(f"Fichier .env non trouvé dans {project_root}. Chargement des variables d'environnement système uniquement.")
 
 def main():
     """Point d'entrée principal du pipeline d'ingestion France Travail → DuckDB."""

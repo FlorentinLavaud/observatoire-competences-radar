@@ -118,7 +118,7 @@ def save_offers_to_duckdb(conn: duckdb.DuckDBPyConnection, offers: list[dict], b
                      type_contrat, type_contrat_libelle, nature_contrat, experience_exige, experience_libelle,
                      nom_acheteur, code_departement, nombre_postes, accessible_th, offres_manque_candidats,
                      description, date_publication, date_creation, date_modification, raw_data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, [
                     offer.get("id", ""),
                     offer.get("source", "france_travail"),

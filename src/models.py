@@ -7,9 +7,9 @@ class FranceTravailOfferParser(BaseModel):
     id: str
     titre: str = Field(alias="intitule")
     description: Optional[str] = None
-    code_rome: Optional[str] = Field(None, alias="romeCodes")
-    rome_libelle: Optional[str] = Field(None, alias="romeLibelles")
-    appellation_libelle: Optional[str] = Field(None, alias="appellationLibelles")
+    code_rome: Optional[str] = Field(None, alias="romeCode")
+    rome_libelle: Optional[str] = Field(None, alias="romeLibelle")
+    appellation_libelle: Optional[str] = Field(None, alias="appellationLibelle")
     code_naf: Optional[str] = Field(None, alias="codeNAF")
     secteur_activite: Optional[str] = Field(None, alias="secteurActivite")
     secteur_libelle: Optional[str] = Field(None, alias="secteurActiviteLibelle")
@@ -17,7 +17,7 @@ class FranceTravailOfferParser(BaseModel):
     type_contrat_libelle: Optional[str] = Field(None, alias="typeContratLibelle")
     nature_contrat: Optional[str] = Field(None, alias="natureContrat")
     experience_exige: Optional[str] = Field(None, alias="experienceExige")
-    experience_libelle: Optional[str] = Field(None, alias="experienceLibelles")
+    experience_libelle: Optional[str] = Field(None, alias="experienceLibelle")
     offres_manque_candidats: Optional[bool] = Field(False, alias="offresManqueCandidats")
     alternance: Optional[bool] = Field(False, alias="alternance")
     date_creation: Optional[str] = Field(None, alias="dateCreation")
@@ -26,10 +26,10 @@ class FranceTravailOfferParser(BaseModel):
     entreprise: Optional[Dict[str, Any]] = None
     nombre_postes: Optional[int] = Field(None, alias="nombrePostes")
     accessible_th: Optional[bool] = Field(False, alias="accessibleTH")
-    deplacement_code: Optional[str] = Field(None, alias="deplacementCodes")
-    deplacement_libelle: Optional[str] = Field(None, alias="deplacementLibelles")
-    qualification_code: Optional[str] = Field(None, alias="qualificationCodes")
-    qualification_libelle: Optional[str] = Field(None, alias="qualificationLibelles")
+    deplacement_code: Optional[str] = Field(None, alias="deplacementCode")
+    deplacement_libelle: Optional[str] = Field(None, alias="deplacementLibelle")
+    qualification_code: Optional[str] = Field(None, alias="qualificationCode")
+    qualification_libelle: Optional[str] = Field(None, alias="qualificationLibelle")
 
     @staticmethod
     def parse_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -95,8 +95,8 @@ class FranceTravailOfferParser(BaseModel):
             "nombre_postes": self.nombre_postes,
             "accessible_th": self.accessible_th,
             "offres_manque_candidats": self.offres_manque_candidats,
-            "date_publication": publication_date,
-            "date_creation": creation_dt,
-            "date_modification": actualisation_dt,
+            "date_publication": publication_date.isoformat() if publication_date else None,
+            "date_creation": creation_dt.isoformat() if creation_dt else None,
+            "date_modification": actualisation_dt.isoformat() if actualisation_dt else None,
             "raw_data": raw_entry,
         }

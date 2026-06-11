@@ -13,4 +13,5 @@ services:
     volumes:
       - ./dbt_project:/workspace/dbt_project
       - ./data:/workspace/data
-    command: dagit -h 0.0.0.0 -p 3000 -w dagster/repository.py
+      - ./dagster_home:/app/dagster_home
+    command: dagster dev -f dagster/repository.py --host 0.0.0.0 --port 3000

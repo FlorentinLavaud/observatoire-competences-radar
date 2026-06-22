@@ -153,3 +153,6 @@ data/
 ### Système de fichiers
 
 - Logs générés dans `logs/scraper.log` avec rotation journalière
+
+
+https://francetravail.io/produits-partages/catalogue/acces-emploi-demandeurs-emploi/documentation#/api-reference/operations/rechercherStatAccesEmploi

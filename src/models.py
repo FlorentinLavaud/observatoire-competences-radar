@@ -100,3 +100,26 @@ class FranceTravailOfferParser(BaseModel):
             "date_modification": actualisation_dt.isoformat() if actualisation_dt else None,
             "raw_data": raw_entry,
         }
+
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class StatAccesEmploi(BaseModel):
+    """Ligne de statistique taux d'accès à l'emploi."""
+    code_rome: Optional[str] = Field(None, alias="codeRome")
+    libelle_rome: Optional[str] = Field(None, alias="libelleRome")
+    code_departement: Optional[str] = Field(None, alias="codeDepartement")
+    libelle_departement: Optional[str] = Field(None, alias="libelleDepartement")
+    annee: Optional[int] = Field(None, alias="annee")
+    duree_acces_emploi: Optional[int] = Field(None, alias="dureeAccesEmploi")
+    taux_acces_emploi: Optional[float] = Field(None, alias="tauxAccesEmploi")
+    nb_demandeurs: Optional[int] = Field(None, alias="nbDemandeurs")
+    type_sortie: Optional[str] = Field(None, alias="typeSortie")
+
+    # champs injectés par le client
+    rome_query: Optional[str] = Field(None, alias="_rome_query")
+    dept_query: Optional[str] = Field(None, alias="_dept_query")
+    duree_mois: Optional[int] = Field(None, alias="_duree_mois")
+
+    class Config:
+        populate_by_name = True

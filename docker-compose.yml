@@ -11,7 +11,8 @@ services:
       - FRANCE_TRAVAIL_CLIENT_ID=${FRANCE_TRAVAIL_CLIENT_ID}
       - FRANCE_TRAVAIL_SECRET_KEY=${FRANCE_TRAVAIL_SECRET_KEY}
     volumes:
-      - ./dbt_project:/workspace/dbt_project
-      - ./data:/workspace/data
+      - ./dbt_project:/app/dbt_project
+      - ./data:/app/data
       - ./dagster_home:/app/dagster_home
-    command: dagster dev -f dagster/repository.py --host 0.0.0.0 --port 3000
+    # La commande exacte qui fonctionne chez toi :
+    command: ["dagster", "dev", "-f", "dagster/repository.py", "--host", "0.0.0.0", "--port", "3000"]

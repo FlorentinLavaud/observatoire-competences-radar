@@ -269,3 +269,8 @@ logs/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
+
+
+.tmp/*.tmp
+*.tmp
+.tmp_dagster/*.tmp

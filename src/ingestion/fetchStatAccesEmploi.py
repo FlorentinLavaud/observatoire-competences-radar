@@ -10,9 +10,9 @@ from typing import Iterator
 
 import requests
 
-from utils.logger import get_logger
+from src.utils.logger import logger
 
-logger = get_logger(__name__)
+
 
 BASE_URL = "https://api.francetravail.io/partenaire/acces-emploi-demandeurs-emploi/v1"
 TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"

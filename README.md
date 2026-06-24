@@ -154,5 +154,16 @@ data/
 
 - Logs générés dans `logs/scraper.log` avec rotation journalière
 
+---
+
+# BACKEND RECAP : 
+- Duckdb sur GCP pour le storage
+- Orchestration avec Dagster 
+- déploiement sur OVH Cloud de la pipeline 
+
+# TODO:
+- Intégration de API rechercherStatAccesEmploi
+--> problème sur le fetching de l'URL quand il run sur Dagster
+- Notebook d'exploration de la db  acces emploi
 
 https://francetravail.io/produits-partages/catalogue/acces-emploi-demandeurs-emploi/documentation#/api-reference/operations/rechercherStatAccesEmploi

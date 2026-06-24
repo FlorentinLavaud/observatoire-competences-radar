@@ -76,8 +76,8 @@ def fetch_stat_acces_emploi(context):
     log = get_dagster_logger()
 
     client = StatAccesEmploiClient(
-        client_id=os.environ["FT_CLIENT_ID"],
-        client_secret=os.environ["FT_CLIENT_SECRET"],
+        client_id=os.environ["FRANCE_TRAVAIL_CLIENT_ID"],
+        client_secret=os.environ["FRANCE_TRAVAIL_SECRET_KEY"],
     )
 
     rows_validated = []

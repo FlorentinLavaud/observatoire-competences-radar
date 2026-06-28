@@ -17,6 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN playwright install --with-deps chromium
+
 ENV DAGSTER_HOME=/app/dagster_home
 RUN mkdir -p /app/dagster_home
 

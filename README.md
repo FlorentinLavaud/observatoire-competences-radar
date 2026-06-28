@@ -162,8 +162,8 @@ data/
 - déploiement sur OVH Cloud de la pipeline 
 
 # TODO:
-- Intégration de API rechercherStatAccesEmploi
---> problème sur le fetching de l'URL quand il run sur Dagster
-- Notebook d'exploration de la db  acces emploi
-
+- Fix l'intégration de stat accès emploi dans dagster
+- Notebook d'exploration de la db acces emploi
+- Scraper sur Emploi Industrie
 https://francetravail.io/produits-partages/catalogue/acces-emploi-demandeurs-emploi/documentation#/api-reference/operations/rechercherStatAccesEmploi
+- Fusion des db (détection code ROME)

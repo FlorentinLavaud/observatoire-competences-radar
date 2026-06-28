@@ -33,7 +33,7 @@ CHECKPOINT_FILE = Path("lindustrie_checkpoint.txt")
 LOG_FILE = Path("lindustrie_scraper.log")
 
 # Plage d'IDs à scraper (bornes incluses)
-DEFAULT_ID_START = 300_000          # à ajuster selon exploration préalable
+DEFAULT_ID_START = 700_000          # à ajuster selon exploration préalable
 DEFAULT_ID_END   = 818_356
 
 CONCURRENCY      = 8                # workers async simultanés
@@ -43,6 +43,8 @@ RETRY_BASE_DELAY = 1.5              # secondes (backoff exponentiel)
 RATE_SLEEP_MIN   = 0.05             # délai min entre requêtes (par worker)
 RATE_SLEEP_MAX   = 0.25             # délai max entre requêtes (par worker)
 
+WAF_COOKIE = "85403ef3-98c4-4686-8f09-8dc60b0603a3:DAoAsxtxmxcfAAAA:ZRAcOa4AaoUGkGj+ULUIGn6eAWMicfCEmFABf+S8GONMcO/XXB2DKficMZNKk5AJSWkoRTska9abiJOTO8BZXk58IZQo2q3yhzEku5eKhZ9sUGSnKfhVZKDyHc0wqblAYAxf0WGBetuajguXRhu/zu7YHK6kCzLo+HHuLMwS7Aj1WM865d5K38/GKUvvRNRWoE3dL6C/ILRFJT1d"
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -51,6 +53,7 @@ HEADERS = {
     ),
     "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Cookie": f"aws-waf-token={WAF_COOKIE}"
 }
 
 logging.basicConfig(

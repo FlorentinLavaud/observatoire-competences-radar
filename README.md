@@ -165,5 +165,7 @@ data/
 - Fix l'intégration de stat accès emploi dans dagster
 - Notebook d'exploration de la db acces emploi
 - Scraper sur Emploi Industrie
-https://francetravail.io/produits-partages/catalogue/acces-emploi-demandeurs-emploi/documentation#/api-reference/operations/rechercherStatAccesEmploi
+--> manque des fields
 - Fusion des db (détection code ROME)
+
+https://francetravail.io/produits-partages/catalogue/acces-emploi-demandeurs-emploi/documentation#/api-reference/operations/rechercherStatAccesEmploi

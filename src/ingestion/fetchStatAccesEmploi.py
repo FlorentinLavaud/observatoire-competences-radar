@@ -36,18 +36,22 @@ class StatAccesEmploiClient:
         if self._token and time.time() < self._token_expires_at - 30:
             return self._token
 
+        # Correction : On passe le client_id et client_secret en HTTP Basic Auth, 
+        # et seul le scope reste dans le corps de la requête (data).
         resp = self.session.post(
             TOKEN_URL,
+            auth=(self.client_id, self.client_secret),
             data={
                 "grant_type": "client_credentials",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
                 "scope": SCOPE,
             },
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
         resp.raise_for_status()
         payload = resp.json()
         self._token = payload["access_token"]
+        
+        # Sécurité : Si l'API ne renvoie pas d'expires_in, on applique 1499s par défaut
         self._token_expires_at = time.time() + payload.get("expires_in", 1499)
         logger.debug("Token StatAccesEmploi renouvelé.")
         return self._token

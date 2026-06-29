@@ -27,10 +27,15 @@ from bs4 import BeautifulSoup, Tag
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-BASE_URL         = "https://www.lindustrie-recrute.fr/candidat/offre/{id}"
-OUTPUT_JSONL     = Path("lindustrie_offres.jsonl")
-CHECKPOINT_FILE  = Path("lindustrie_checkpoint.txt")
-LOG_FILE         = Path("lindustrie_scraper.log")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR     = PROJECT_ROOT / "data"
+
+BASE_URL        = "https://www.lindustrie-recrute.fr/candidat/offre/{id}"
+OUTPUT_JSONL    = DATA_DIR / "lindustrie_offres.jsonl"
+OUTPUT_PARQUET  = DATA_DIR / "lindustrie_offres.parquet"
+CHECKPOINT_FILE = DATA_DIR / "lindustrie_checkpoint.txt"
+DUCKDB_PATH     = DATA_DIR / "radar.duckdb"
+LOG_FILE        = DATA_DIR / "lindustrie_scraper.log"
 
 DEFAULT_ID_START = 818_000
 DEFAULT_ID_END   = 818_356
@@ -564,13 +569,99 @@ class LindustrieScraper:
 # ─── Conversion JSONL → Parquet ───────────────────────────────────────────────
 
 def convert_to_parquet(jsonl_path: Path = OUTPUT_JSONL) -> None:
+    """Convertit le JSONL en Parquet et charge dans radar.duckdb."""
     import duckdb
-    out = jsonl_path.with_suffix(".parquet")
-    duckdb.connect().execute(f"""
-        COPY (SELECT * FROM read_json_auto('{jsonl_path}', ignore_errors=true))
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    out = OUTPUT_PARQUET
+
+    con = duckdb.connect(str(DUCKDB_PATH))
+
+    # ── 1. Création de la table si elle n'existe pas ──────────────────────────
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS lindustrie_offres (
+            id                    VARCHAR PRIMARY KEY,
+            source                VARCHAR,
+            titre                 VARCHAR,
+            description           VARCHAR,
+            type_contrat          VARCHAR,
+            type_contrat_libelle  VARCHAR,
+            nature_contrat        VARCHAR,
+            experience_exige      VARCHAR,
+            experience_libelle    VARCHAR,
+            qualification_libelle VARCHAR,
+            code_departement      VARCHAR,
+            lieu_travail_libelle  VARCHAR,
+            region                VARCHAR,
+            nom_acheteur          VARCHAR,
+            secteur               VARCHAR,
+            code_naf              VARCHAR,
+            code_rome             VARCHAR,
+            rome_libelle          VARCHAR,
+            appellation_libelle   VARCHAR,
+            nombre_postes         INTEGER,
+            alternance            BOOLEAN,
+            accessible_th         BOOLEAN,
+            salaire_libelle       VARCHAR,
+            date_publication      DATE,
+            date_creation         DATE,
+            date_modification     DATE,
+            reference_interne     VARCHAR,
+            raw_data              JSON,
+            inserted_at           TIMESTAMP DEFAULT current_timestamp
+        )
+    """)
+
+    # ── 2. Upsert JSONL → DuckDB (INSERT OR REPLACE sur la PK id) ─────────────
+    con.execute(f"""
+        INSERT OR REPLACE INTO lindustrie_offres
+        SELECT
+            id,
+            source,
+            titre,
+            description,
+            type_contrat,
+            type_contrat_libelle,
+            nature_contrat,
+            experience_exige,
+            experience_libelle,
+            qualification_libelle,
+            code_departement,
+            lieu_travail_libelle,
+            region,
+            nom_acheteur,
+            secteur,
+            code_naf,
+            code_rome,
+            rome_libelle,
+            appellation_libelle,
+            nombre_postes::INTEGER,
+            alternance::BOOLEAN,
+            accessible_th::BOOLEAN,
+            salaire_libelle,
+            TRY_CAST(date_publication AS DATE),
+            TRY_CAST(date_creation    AS DATE),
+            TRY_CAST(date_modification AS DATE),
+            reference_interne,
+            raw_data::JSON,
+            current_timestamp
+        FROM read_json_auto('{jsonl_path}', ignore_errors=true)
+    """)
+
+    n = con.execute("SELECT COUNT(*) FROM lindustrie_offres").fetchone()[0]
+    log.info(f"DuckDB : {n} offres dans lindustrie_offres ({DUCKDB_PATH})")
+
+    # ── 3. Export Parquet depuis DuckDB ────────────────────────────────────────
+    con.execute(f"""
+        COPY (
+            SELECT * EXCLUDE (inserted_at)
+            FROM lindustrie_offres
+        )
         TO '{out}' (FORMAT PARQUET, COMPRESSION 'zstd')
     """)
     log.info(f"Parquet écrit : {out}")
+
+    con.close()
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
@@ -583,6 +674,8 @@ def main() -> None:
     p.add_argument("--output",      type=Path, default=OUTPUT_JSONL)
     p.add_argument("--resume",      action="store_true")
     p.add_argument("--to-parquet",  action="store_true")
+    p.add_argument("--no-convert",  action="store_true",
+                   help="Ne pas convertir en Parquet/DuckDB après scraping")
     args = p.parse_args()
 
     if args.to_parquet:
@@ -597,6 +690,10 @@ def main() -> None:
         resume=args.resume,
     ).run_sync()
 
+    # Conversion automatique sauf si --no-convert
+    if not args.no_convert:
+        log.info("Conversion automatique JSONL → Parquet + DuckDB...")
+        convert_to_parquet(args.output)
 
 if __name__ == "__main__":
     main()

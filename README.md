@@ -1,20 +1,21 @@
 # Observatoire Compétences Radar — Pipeline Data
 
-Pipeline d'ingestion et transformation des offres d'emploi de la filière **industrie manufacturière** (INSEE Section C, divisions 10-33) via l'API **France Travail v2**.
+Pipeline d'ingestion et transformation des offres d'emploi de la filière **industrie manufacturière** (INSEE Section C, divisions 10-33) via l'API **France Travail v2** et le scraper **lindustrie-recrute.fr**.
 
 **Architecture simplifiée:**
 
 ```text
-[ France Travail API ]
-         │
-         ▼
-   [ Dagster ]  (orchestration)
-         │
-         ▼
-   [ DuckDB ]  (stockage)
-         │
-         ▼
-   [ dbt ]  (transformation)
+[ France Travail API ]    [ lindustrie-recrute.fr ]
+         │                          │
+         └──────────┬───────────────┘
+                    ▼
+              [ Dagster ]  (orchestration)
+                    │
+                    ▼
+              [ DuckDB ]  (stockage)
+                    │
+                    ▼
+                [ dbt ]  (transformation)
 ```
 
 ---
@@ -78,6 +79,19 @@ dagster dev -w dagster/repository.py
 
 Puis ouvrir http://localhost:3000
 
+**Scraper lindustrie-recrute.fr:**
+
+```bash
+# Scraping initial (plage d'IDs complète)
+python src/ingestion/fetchEmploiIndustrie.py --start 700000 --end 818356
+
+# Reprise après interruption
+python src/ingestion/fetchEmploiIndustrie.py --resume
+
+# Conversion JSONL → Parquet
+python src/ingestion/fetchEmploiIndustrie.py --to-parquet
+```
+
 **Exécuter les transformations dbt:**
 
 ```bash
@@ -93,29 +107,53 @@ src/
 ├── run_ingestion.py           # Point d'entrée du pipeline
 ├── models.py                  # Schémas Pydantic de validation
 ├── ingestion/
-│   └── fetchFT.py            # Scraper France Travail API
+│   ├── fetchFT.py             # Client API France Travail
+│   ├── fetchEmploiIndustrie.py  # Scraper lindustrie-recrute.fr
+│   └── awswaf/                # Solver AWS WAF (bypass challenge JS)
+│       ├── aws.py
+│       ├── verify.py
+│       ├── fingerprint.py
+│       ├── crypto.py
+│       └── webgl.json
 ├── orchestration/
-│   └── dagster_pipeline.py   # Jobs et ops Dagster
+│   └── dagster_pipeline.py    # Jobs et ops Dagster
 ├── utils/
-│   ├── logger.py             # Configuration logging
-│   └── duckdb_handler.py     # Gestion DuckDB
+│   ├── logger.py              # Configuration logging
+│   └── duckdb_handler.py      # Gestion DuckDB
 │
 dbt_project/
-├── dbt_project.yml           # Configuration dbt
-├── profiles.yml              # Profil DuckDB
+├── dbt_project.yml            # Configuration dbt
+├── profiles.yml               # Profil DuckDB
 └── models/
-    ├── staging/stg_offres.sql      # Nettoyage des données brutes
-    └── marts/offres_tension.sql    # Calcul des indices de tension
+    ├── staging/stg_offres.sql       # Nettoyage des données brutes
+    └── marts/offres_tension.sql     # Calcul des indices de tension
 
 data/
-└── radar.duckdb              # Base de données DuckDB locale
+└── radar.duckdb               # Base de données DuckDB locale
 ```
+
+---
+
+## Sources de données
+
+### France Travail API v2
+- **Offres d'emploi** : endpoint recherche, filtré sur les divisions NAF 10–33
+- **Statistiques d'accès à l'emploi** : endpoint `rechercherStatAccesEmploi`
+- Authentification OAuth2, refresh automatique du token
+- Référence : https://francetravail.io/produits-partages/catalogue/acces-emploi-demandeurs-emploi/documentation#/api-reference/operations/rechercherStatAccesEmploi
+
+### lindustrie-recrute.fr (UIMM)
+- Scraper async sur ~118 000 IDs (700 000 → 818 356)
+- Bypass AWS WAF via solver cryptographique (challenge `NetworkBandwidth`)
+- Parsing JSON-LD `JobPosting` + sélecteurs CSS UIMM
+- Sortie : JSONL + Parquet (compression zstd)
+- Schéma normalisé aligné sur France Travail pour fusion en aval
 
 ---
 
 ## Pipeline de données
 
-1. **Ingestion** — Collecte les offres via France Travail API
+1. **Ingestion** — Collecte les offres via France Travail API et scraper UIMM
 2. **Validation** — Normalise les données avec Pydantic
 3. **Persistance** — Stocke dans DuckDB
 4. **Transformation** — dbt nettoie et enrichit les données
@@ -126,13 +164,14 @@ data/
 ## Architecture cible
 
 ```text
-[ France Travail / INSEE ]
-           │
-           ▼
-     [ Dagster ]  (orchestration du pipeline)
-           │
-           ▼
-   [ dbt + DuckDB ] (nettoyage, calcul des indices de tension)
+[ France Travail API ]    [ lindustrie-recrute.fr ]    [ INSEE ]
+         │                          │                      │
+         └──────────────┬───────────┘                      │
+                        ▼                                  │
+                  [ Dagster ]  (orchestration du pipeline) │
+                        │                                  │
+                        ▼                                  │
+            [ dbt + DuckDB ] (nettoyage, calcul indices de tension)
 ```
 
 ### Composants
@@ -153,19 +192,22 @@ data/
 ### Système de fichiers
 
 - Logs générés dans `logs/scraper.log` avec rotation journalière
+- Checkpoint scraper : `lindustrie_checkpoint.txt` (reprise `--resume`)
+- Sortie scraper : `lindustrie_offres.jsonl` / `lindustrie_offres.parquet`
 
 ---
 
-# BACKEND RECAP : 
-- Duckdb sur GCP pour le storage
-- Orchestration avec Dagster 
-- déploiement sur OVH Cloud de la pipeline 
+## Backend & Infra
 
-# TODO:
-- Fix l'intégration de stat accès emploi dans dagster
-- Notebook d'exploration de la db acces emploi
-- Scraper sur Emploi Industrie
---> manque des fields
-- Fusion des db (détection code ROME)
+- DuckDB sur GCP pour le stockage
+- Orchestration avec Dagster
+- Déploiement sur OVH Cloud
 
-https://francetravail.io/produits-partages/catalogue/acces-emploi-demandeurs-emploi/documentation#/api-reference/operations/rechercherStatAccesEmploi
+---
+
+## TODO
+
+- [ ] Fix intégration `rechercherStatAccesEmploi` dans Dagster
+- [ ] Notebook d'exploration de la DB accès emploi
+- [ ] Compléter les fields manquants du scraper lindustrie-recrute.fr
+- [ ] Fusion des DB France Travail + UIMM (déduplication, détection code ROME)

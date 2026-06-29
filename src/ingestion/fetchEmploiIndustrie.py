@@ -2,12 +2,14 @@
 Scraper async pour lindustrie-recrute.fr
 -----------------------------------------
 Usage :
-    python lindustrie_scraper.py --start 700000 --end 818356
-    python lindustrie_scraper.py --resume
-    python lindustrie_scraper.py --to-parquet
+    python fetchEmploiIndustrie.py --start 700000 --end 818356
+    python fetchEmploiIndustrie.py --resume
+    python fetchEmploiIndustrie.py --to-parquet
 """
-
 from __future__ import annotations
+
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # permet "from awswaf.aws import ..."
 
 import argparse
 import asyncio
@@ -20,7 +22,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
 
-import httpx
+from curl_cffi.requests import AsyncSession as CurlSession
 from bs4 import BeautifulSoup, Tag
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -30,7 +32,7 @@ OUTPUT_JSONL     = Path("lindustrie_offres.jsonl")
 CHECKPOINT_FILE  = Path("lindustrie_checkpoint.txt")
 LOG_FILE         = Path("lindustrie_scraper.log")
 
-DEFAULT_ID_START = 700_000
+DEFAULT_ID_START = 818_000
 DEFAULT_ID_END   = 818_356
 
 CONCURRENCY      = 8
@@ -76,9 +78,9 @@ class LindustrieOffer:
     nature_contrat: Optional[str] = None
     experience_exige: Optional[str] = None
     experience_libelle: Optional[str] = None
-    qualification_libelle: Optional[str] = None   # niveau d'études
+    qualification_libelle: Optional[str] = None
     code_departement: Optional[str] = None
-    lieu_travail_libelle: Optional[str] = None    # "Cruas (07350)"
+    lieu_travail_libelle: Optional[str] = None
     region: Optional[str] = None
     nom_acheteur: Optional[str] = None
     secteur: Optional[str] = None
@@ -115,7 +117,7 @@ class LindustrieOfferParser:
         "cdi": "CDI", "cdd": "CDD", "alternance": "ALT",
         "stage": "STG", "interim": "MIS", "intérim": "MIS",
         "freelance": "LIB", "apprentissage": "ALT",
-        "temps complet": None, "temps partiel": None,  # nature, pas type
+        "temps complet": None, "temps partiel": None,
     }
 
     def __init__(self, offer_id: int, html: str):
@@ -129,16 +131,13 @@ class LindustrieOfferParser:
         if not body or not isinstance(body, Tag):
             return "waf"
         classes = body.get("class", [])
-        # Offre valide : body class="paged-XXXXXXX"
         if any(c.startswith("paged-") for c in classes):
             return "offer"
-        # 404 : body class="error404"
         if "error404" in classes:
             return "404"
-        # WAF : pas de body reconnaissable ou script AWS WAF
         if self.soup.find("script", src=re.compile(r"awswaf")):
             return "waf"
-        return "waf"   # fallback conservateur
+        return "waf"
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -163,7 +162,6 @@ class LindustrieOfferParser:
     # ── JSON-LD ───────────────────────────────────────────────────────────────
 
     def _parse_json_ld(self) -> Dict[str, Any]:
-        """Récupère le bloc JobPosting du JSON-LD embarqué."""
         for tag in self.soup.find_all("script", type="application/ld+json"):
             try:
                 blob = json.loads(tag.string or "")
@@ -175,17 +173,11 @@ class LindustrieOfferParser:
                 continue
         return {}
 
-    # ── extraction ciblée (fallback / complément du JSON-LD) ─────────────────
+    # ── extraction ciblée ─────────────────────────────────────────────────────
 
     def _parse_lieu(self) -> tuple[Optional[str], Optional[str], Optional[str]]:
-        """
-        Extrait (code_dept, libelle_lieu, region) depuis .offer-details__where
-        ou le JSON-LD jobLocation.
-        Format observé : "Cruas (07350)"
-        """
         raw = self._text(".offer-details__where")
         if raw:
-            # Retire le nom d'entreprise qui précède " - "
             if " - " in raw:
                 raw = raw.split(" - ", 1)[1]
             raw = self._clean(raw)
@@ -193,21 +185,16 @@ class LindustrieOfferParser:
         region = None
         code_dept = None
         if raw:
-            m = re.search(r"\((\d{2,3})\d{3}\)", raw)  # "(07350)" → "07"
+            m = re.search(r"\((\d{2,3})\d{3}\)", raw)
             if m:
                 code_dept = m.group(1)
             else:
-                m = re.search(r"\((\d{2,3})\)", raw)   # "(07)" → "07"
+                m = re.search(r"\((\d{2,3})\)", raw)
                 if m:
                     code_dept = m.group(1)
         return code_dept, raw, region
 
     def _parse_offer_datas(self) -> Dict[str, Optional[str]]:
-        """
-        Extrait les métadonnées de la sidebar (.offer-datas).
-        Chaque bloc contient une icône uimm-icon et un texte.
-        Icônes observées : pin, experience, etudes, contrat, time
-        """
         result: Dict[str, Optional[str]] = {
             "contrat": None, "experience": None,
             "etudes": None, "temps": None,
@@ -238,11 +225,6 @@ class LindustrieOfferParser:
         return None
 
     def _parse_salaire(self) -> Optional[str]:
-        """
-        Le salaire n'est pas dans le JSON-LD ; il apparaît dans les cards
-        de résultats similaires (.offer-card__datas-item avec .salaire).
-        Sur la page de détail, chercher dans le texte libre.
-        """
         for el in self.soup.select(".offer-card__datas-item"):
             icon = el.select_one(".uimm-icon.salaire")
             if icon:
@@ -252,21 +234,19 @@ class LindustrieOfferParser:
         return None
 
     def _parse_entreprise(self) -> Optional[str]:
-        txt = self._text(".offer-details__where .company")
-        return txt
+        return self._text(".offer-details__where .company")
 
     # ── entrée principale ─────────────────────────────────────────────────────
 
     def parse(self) -> ParseResult:
         pt = self.page_type()
         if pt != "offer":
-            return pt  # "404" ou "waf"
+            return pt
 
         ld = self._parse_json_ld()
         datas = self._parse_offer_datas()
         code_dept, lieu_libelle, region = self._parse_lieu()
 
-        # ── titre ──
         titre = (
             self._clean(ld.get("title"))
             or self._clean(ld.get("name"))
@@ -274,33 +254,24 @@ class LindustrieOfferParser:
             or self._text("h1")
         )
 
-        # ── description (HTML nettoyé) ──
         desc_raw = self._clean(ld.get("description"))
         if not desc_raw:
             el = self.soup.select_one(".offer-detail_content")
             desc_raw = self._clean(el.get_text()) if el else None
 
-        # ── entreprise ──
         nom_acheteur = (
             self._clean(ld.get("hiringOrganization", {}).get("name"))
             or self._parse_entreprise()
         )
 
-        # ── contrat ──
         contrat_raw = datas.get("contrat") or self._clean(ld.get("employmentType"))
         type_contrat_code = self._CONTRAT_NORM.get((contrat_raw or "").lower())
         type_contrat_libelle = contrat_raw
-
-        # nature du contrat (Temps complet / Temps partiel)
         nature_contrat = datas.get("temps")
 
-        # ── expérience ──
         exp_libelle = datas.get("experience") or self._clean(ld.get("experienceRequirements"))
-
-        # ── qualification / études ──
         qualification_libelle = datas.get("etudes") or self._clean(ld.get("educationRequirements"))
 
-        # ── localisation depuis JSON-LD (plus fiable pour code postal complet) ──
         if ld.get("jobLocation"):
             addr = ld["jobLocation"].get("address", {})
             if not lieu_libelle:
@@ -312,17 +283,14 @@ class LindustrieOfferParser:
                 code_dept = postal[:2] if postal else None
             region = region or self._clean(addr.get("addressRegion"))
 
-        # ── date ──
         date_pub = None
         if ld.get("datePosted"):
             date_pub = ld["datePosted"][:10]
 
-        # ── référence ──
         reference = self._parse_reference()
         if not reference and ld.get("identifier"):
             reference = self._clean(str(ld["identifier"].get("name", "")))
 
-        # ── alternance ──
         alternance = (contrat_raw or "").lower() in ("alternance", "apprentissage")
 
         return LindustrieOffer(
@@ -352,9 +320,10 @@ class LindustrieOfferParser:
 # ─── Gestionnaire de cookie WAF ───────────────────────────────────────────────
 
 class WafCookieManager:
-    """Résout le challenge AWS WAF via Playwright et met le cookie en cache."""
+    """Résout le challenge AWS WAF via solver cryptographique (xKiian/awswaf)."""
 
-    PROBE_URL = "https://www.lindustrie-recrute.fr/candidat/offre/700952"
+    PROBE_URL  = "https://www.lindustrie-recrute.fr/candidat/offre/700952"
+    WAF_DOMAIN = "www.lindustrie-recrute.fr"
 
     def __init__(self):
         self._cookie: Optional[str] = None
@@ -373,45 +342,40 @@ class WafCookieManager:
 
     @staticmethod
     async def _resolve_waf() -> str:
-        from playwright.async_api import async_playwright
+        from awswaf.aws import AwsWaf
+        from curl_cffi.requests import AsyncSession
 
-        log.info("Résolution du challenge AWS WAF via Playwright...")
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent=BASE_HEADERS["User-Agent"],
-                locale="fr-FR",
-            )
-            page = await context.new_page()
-            await page.goto(
-                WafCookieManager.PROBE_URL,
-                wait_until="networkidle",
-                timeout=40_000,
-            )
-            try:
-                # Attend le contenu réel (body class="paged-...")
-                await page.wait_for_function(
-                    "document.body.className.includes('paged-')",
-                    timeout=20_000,
-                )
-            except Exception:
-                log.warning("WAF : body paged-* non détecté, on continue")
+        log.info("Résolution AWS WAF via solver cryptographique...")
 
-            cookies = await context.cookies()
-            await browser.close()
+        async with AsyncSession(impersonate="chrome124") as session:
+            resp = await session.get(WafCookieManager.PROBE_URL)
 
-        token = next(
-            (c["value"] for c in cookies if "aws-waf-token" in c["name"]),
-            None,
-        )
+        direct = resp.cookies.get("aws-waf-token")
+        if direct:
+            log.info("Cookie WAF obtenu directement")
+            return direct
+
+        html = resp.text
+        if "gokuProps" not in html:
+            raise RuntimeError(f"Réponse WAF inattendue. Status={resp.status_code} | {html[:300]}")
+
+        # Extrait le host WAF depuis le HTML
+        waf_host = html.split('src="https://')[1].split("/challenge.js")[0]
+
+        # Télécharge challenge.js pour parser les constantes (nouveau dans ce fix)
+        async with AsyncSession(impersonate="chrome124") as session:
+            js_resp = await session.get(f"https://{waf_host}/challenge.js")
+        challenge_js = js_resp.text
+
+        log.info(f"challenge.js téléchargé ({len(challenge_js)} chars) — host: {waf_host}")
+
+        token = AwsWaf(waf_host, WafCookieManager.WAF_DOMAIN, challenge_js)()
+
         if not token:
-            raise RuntimeError(
-                "Cookie aws-waf-token introuvable. "
-                "Vérifier : playwright install chromium"
-            )
-        log.info(f"Cookie WAF obtenu ({token[:20]}...)")
-        return token
+            raise RuntimeError("AwsWaf solver a retourné un token vide.")
 
+        log.info(f"Token WAF obtenu ({str(token)[:20]}...)")
+        return token
 
 # ─── Scraper principal ────────────────────────────────────────────────────────
 
@@ -434,7 +398,7 @@ class LindustrieScraper:
         self.resume = resume
 
         self._waf = WafCookieManager()
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: Optional[CurlSession] = None
         self._semaphore: asyncio.Semaphore
         self._queue: asyncio.Queue
         self._write_lock = asyncio.Lock()
@@ -468,20 +432,26 @@ class LindustrieScraper:
 
     # ── client HTTP ───────────────────────────────────────────────────────────
 
-    async def _build_client(self) -> httpx.AsyncClient:
+    async def _build_client(self) -> CurlSession:
         cookie = await self._waf.get_cookie()
-        headers = {**BASE_HEADERS, "Cookie": f"aws-waf-token={cookie}"}
-        return httpx.AsyncClient(headers=headers, follow_redirects=True)
+        return CurlSession(
+            headers=BASE_HEADERS,
+            cookies={"aws-waf-token": cookie},
+            impersonate="chrome124",
+        )
 
     async def _refresh_client(self) -> None:
         self.stats["waf_refresh"] += 1
         log.warning("Renouvellement du cookie WAF...")
         if self._client:
-            await self._client.aclose()
+            self._client.close()  # CurlSession sync close (pas async)
         cookie = await self._waf.get_cookie(force=True)
-        headers = {**BASE_HEADERS, "Cookie": f"aws-waf-token={cookie}"}
-        self._client = httpx.AsyncClient(headers=headers, follow_redirects=True)
-        log.info("Client HTTP reconstruit avec nouveau cookie WAF")
+        self._client = CurlSession(
+            headers=BASE_HEADERS,
+            cookies={"aws-waf-token": cookie},
+            impersonate="chrome124",
+        )
+        log.info("Client reconstruit avec nouveau cookie WAF")
 
     # ── fetch ─────────────────────────────────────────────────────────────────
 
@@ -501,7 +471,7 @@ class LindustrieScraper:
                     await asyncio.sleep(wait)
                     continue
                 log.warning(f"[{offer_id}] HTTP {resp.status_code} (attempt {attempt})")
-            except (httpx.TimeoutException, httpx.ConnectError) as e:
+            except Exception as e:
                 log.warning(f"[{offer_id}] {type(e).__name__} attempt {attempt}: {e}")
             if attempt < RETRY_MAX:
                 await asyncio.sleep(RETRY_BASE_DELAY ** attempt)
@@ -532,7 +502,7 @@ class LindustrieScraper:
                 if result == "waf":
                     log.warning(f"[{offer_id}] WAF détecté → renouvellement cookie")
                     await self._refresh_client()
-                    await self._queue.put(offer_id)   # remet en queue
+                    await self._queue.put(offer_id)
                     self._queue.task_done()
                     continue
 
@@ -575,7 +545,8 @@ class LindustrieScraper:
             workers = [asyncio.create_task(self._worker()) for _ in range(self.concurrency)]
             await asyncio.gather(*workers)
         finally:
-            await self._client.aclose()
+            if self._client:
+                self._client.close()  # sync close
 
         elapsed = time.monotonic() - t0
         log.info(

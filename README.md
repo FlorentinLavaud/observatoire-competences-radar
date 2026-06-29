@@ -208,6 +208,6 @@ data/
 ## TODO
 
 - [ ] Fix intégration `rechercherStatAccesEmploi` dans Dagster
-- [ ] Notebook d'exploration de la DB accès emploi
-- [ ] Compléter les fields manquants du scraper lindustrie-recrute.fr
-- [ ] Fusion des DB France Travail + UIMM (déduplication, détection code ROME)
+- [ ] Vérifier le déploiement du fetching de Emploi Industrie
+- [ ] Fusion des DB France Travail + Emploi Industrie (déduplication, détection code ROME, Ajout SIREN, Ajout NAF)
+- [ ] Déployer la pipeline avec serveur GCP

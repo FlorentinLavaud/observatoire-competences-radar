@@ -37,7 +37,7 @@ CHECKPOINT_FILE = DATA_DIR / "lindustrie_checkpoint.txt"
 DUCKDB_PATH     = DATA_DIR / "radar.duckdb"
 LOG_FILE        = DATA_DIR / "lindustrie_scraper.log"
 
-DEFAULT_ID_START = 818_000
+DEFAULT_ID_START = 700_000
 DEFAULT_ID_END   = 818_356
 
 CONCURRENCY      = 8
@@ -47,6 +47,11 @@ RETRY_BASE_DELAY = 1.5
 RATE_SLEEP_MIN   = 0.05
 RATE_SLEEP_MAX   = 0.25
 WAF_COOKIE_TTL   = 3_600   # secondes avant renouvellement préventif
+
+# ─── Anti-DDoS / politeness ────────────────────────────────────────────────────
+GLOBAL_RATE_PER_SEC = 3.0   # débit cible GLOBAL (toutes coroutines confondues)
+GLOBAL_BURST        = 5     # tolérance de rafale
+THROTTLE_ON_STATUS  = (429, 503)  # statuts qui déclenchent un ralentissement adaptatif
 
 BASE_HEADERS = {
     "User-Agent": (
@@ -322,6 +327,68 @@ class LindustrieOfferParser:
         )
 
 
+# ─── Rate limiter global (anti-DDoS) ──────────────────────────────────────────
+
+class GlobalRateLimiter:
+    """
+    Token bucket partagé entre tous les workers, pour garantir un débit
+    global plafonné quel que soit le niveau de concurrence configuré.
+
+    Sans ça, le sleep aléatoire (RATE_SLEEP_MIN/MAX) est appliqué par
+    worker : passer concurrency de 8 à 16 multiplie le débit réel par 2,
+    ce qui peut ressembler à un comportement de type DDoS côté serveur,
+    même avec un délai aléatoire entre requêtes.
+
+    Ici on fixe un débit cible en requêtes/seconde, indépendant du
+    nombre de workers, avec un peu de gigue (jitter) pour ne pas être
+    parfaitement périodique, et un ralentissement adaptatif en cas
+    d'erreurs 429/503 répétées.
+    """
+
+    def __init__(self, rate_per_sec: float = GLOBAL_RATE_PER_SEC, burst: int = GLOBAL_BURST):
+        self.rate = rate_per_sec
+        self.capacity = burst
+        self._tokens = float(burst)
+        self._last = time.monotonic()
+        self._lock = asyncio.Lock()
+        self._slowdown = 1.0  # 1.0 = nominal, >1.0 = throttlé
+        self._consecutive_throttle_hits = 0
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last
+            self._last = now
+            effective_rate = self.rate / self._slowdown
+            self._tokens = min(self.capacity, self._tokens + elapsed * effective_rate)
+
+            if self._tokens < 1.0:
+                wait = (1.0 - self._tokens) / effective_rate
+                await asyncio.sleep(wait)
+                self._tokens = 0.0
+            else:
+                self._tokens -= 1.0
+
+        # gigue additionnelle pour casser la régularité du pattern de requêtes
+        await asyncio.sleep(random.uniform(RATE_SLEEP_MIN, RATE_SLEEP_MAX))
+
+    def report_throttle_signal(self) -> None:
+        """À appeler sur réception d'un 429/503 : ralentit le débit cible."""
+        self._consecutive_throttle_hits += 1
+        old = self._slowdown
+        self._slowdown = min(8.0, self._slowdown * 1.5)
+        if self._slowdown != old:
+            log.warning(
+                f"Anti-DDoS throttle : débit réduit à "
+                f"≈{self.rate / self._slowdown:.2f} req/s (x{self._slowdown:.1f})"
+            )
+
+    def report_ok_signal(self) -> None:
+        """À appeler sur réponse 2xx : relâche progressivement le throttle."""
+        self._consecutive_throttle_hits = 0
+        self._slowdown = max(1.0, self._slowdown * 0.97)
+
+
 # ─── Gestionnaire de cookie WAF ───────────────────────────────────────────────
 
 class WafCookieManager:
@@ -394,6 +461,7 @@ class LindustrieScraper:
         checkpoint_path: Path = CHECKPOINT_FILE,
         concurrency: int = CONCURRENCY,
         resume: bool = False,
+        rate_per_sec: float = GLOBAL_RATE_PER_SEC,
     ):
         self.id_start = id_start
         self.id_end = id_end
@@ -407,10 +475,12 @@ class LindustrieScraper:
         self._semaphore: asyncio.Semaphore
         self._queue: asyncio.Queue
         self._write_lock = asyncio.Lock()
+        self._rate_limiter = GlobalRateLimiter(rate_per_sec=rate_per_sec)
 
         self.stats = {
             "fetched": 0, "parsed": 0,
             "not_found": 0, "errors": 0, "waf_refresh": 0,
+            "throttled": 0,
         }
 
     # ── checkpoint ────────────────────────────────────────────────────────────
@@ -464,15 +534,22 @@ class LindustrieScraper:
         url = BASE_URL.format(id=offer_id)
         for attempt in range(1, RETRY_MAX + 1):
             try:
-                await asyncio.sleep(random.uniform(RATE_SLEEP_MIN, RATE_SLEEP_MAX))
+                # respecte le débit global avant chaque tentative,
+                # y compris les retries (sinon les retries contournent le throttle)
+                await self._rate_limiter.acquire()
                 resp = await self._client.get(url, timeout=REQUEST_TIMEOUT)
+
                 if resp.status_code in (200, 202):
+                    self._rate_limiter.report_ok_signal()
                     return resp.text
                 if resp.status_code in (404, 410):
+                    self._rate_limiter.report_ok_signal()
                     return None
-                if resp.status_code == 429:
+                if resp.status_code in THROTTLE_ON_STATUS:
+                    self.stats["throttled"] += 1
+                    self._rate_limiter.report_throttle_signal()
                     wait = 15 * attempt
-                    log.warning(f"[{offer_id}] 429 – attente {wait}s")
+                    log.warning(f"[{offer_id}] HTTP {resp.status_code} – attente {wait}s (anti-DDoS)")
                     await asyncio.sleep(wait)
                     continue
                 log.warning(f"[{offer_id}] HTTP {resp.status_code} (attempt {attempt})")
@@ -536,7 +613,10 @@ class LindustrieScraper:
     async def run(self) -> None:
         start_id = self._load_checkpoint()
         total = self.id_end - start_id + 1
-        log.info(f"Scraping IDs {start_id} → {self.id_end} ({total} IDs)")
+        log.info(
+            f"Scraping IDs {start_id} → {self.id_end} ({total} IDs) | "
+            f"débit cible ≈{self._rate_limiter.rate} req/s, concurrency={self.concurrency}"
+        )
 
         self._semaphore = asyncio.Semaphore(self.concurrency)
         self._queue = asyncio.Queue()
@@ -559,6 +639,7 @@ class LindustrieScraper:
             f"parsés={self.stats['parsed']} | "
             f"not_found={self.stats['not_found']} | "
             f"erreurs={self.stats['errors']} | "
+            f"throttled={self.stats['throttled']} | "
             f"waf_refresh={self.stats['waf_refresh']}"
         )
 
@@ -671,6 +752,8 @@ def main() -> None:
     p.add_argument("--start",       type=int,  default=DEFAULT_ID_START)
     p.add_argument("--end",         type=int,  default=DEFAULT_ID_END)
     p.add_argument("--concurrency", type=int,  default=CONCURRENCY)
+    p.add_argument("--rate",        type=float, default=GLOBAL_RATE_PER_SEC,
+                   help="Débit cible global en requêtes/seconde (anti-DDoS)")
     p.add_argument("--output",      type=Path, default=OUTPUT_JSONL)
     p.add_argument("--resume",      action="store_true")
     p.add_argument("--to-parquet",  action="store_true")
@@ -688,6 +771,7 @@ def main() -> None:
         output_path=args.output,
         concurrency=args.concurrency,
         resume=args.resume,
+        rate_per_sec=args.rate,
     ).run_sync()
 
     # Conversion automatique sauf si --no-convert

@@ -206,9 +206,9 @@ data/
 ---
 
 ## TODO
-
+- [-] Doc méthodo (DARES) sur Notion
 - [ ] Fix intégration `rechercherStatAccesEmploi` dans Dagster
-- [-] Run fetching de Emploi Industrie (Changer l'id de départ)
-- [ ] Vérifier le déploiement du fetching de Emploi Industrie (Changer l'id de départ)
+- [-] Run fetching de Emploi Industrie (Changer l'id de départ + Rate limiter)
+- [ ] Vérifier le déploiement du fetching de Emploi Industrie 
 - [ ] Fusion des DB France Travail + Emploi Industrie (déduplication, détection code ROME, Ajout SIREN, Ajout NAF)
 - [ ] Déployer la pipeline avec serveur GCP

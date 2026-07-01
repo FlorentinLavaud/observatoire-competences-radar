@@ -5,6 +5,7 @@ Scope    : api_acces-emploi-demandeurs-emploiv1
 """
 from __future__ import annotations
 
+import os
 import time
 from typing import Iterator
 
@@ -16,7 +17,7 @@ from src.utils.logger import logger
 
 BASE_URL = "https://api.francetravail.io/partenaire/acces-emploi-demandeurs-emploi/v1"
 TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire"
-SCOPE = "api_acces-emploi-demandeurs-emploiv1"
+SCOPE = os.getenv("FRANCE_TRAVAIL_ACCES_EMPLOI_SCOPE", "api_acces-emploi-demandeurs-emploiv1")
 
 
 class StatAccesEmploiClient:
@@ -43,6 +44,7 @@ class StatAccesEmploiClient:
 
         # Generer le token OAuth2 avec client credentials envoyés dans le corps.
         # On utilise le même pattern que le scraper France Travail pour éviter les 400.
+        logger.debug("OAuth2 StatAccesEmploi demande de token avec scope=%s", SCOPE)
         resp = self.session.post(
             TOKEN_URL,
             data={

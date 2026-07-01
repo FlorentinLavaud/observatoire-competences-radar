@@ -4,8 +4,8 @@ import re
 
 from curl_cffi import requests
 
-from awswaf.fingerprint import get_fp
-from awswaf.verify import CHALLENGE_SOLVERS
+from .fingerprint import get_fp
+from .verify import CHALLENGE_SOLVERS
 
 
 def parse_challenge_js(js_text: str) -> dict:
@@ -96,7 +96,7 @@ class AwsWaf:
         solver = CHALLENGE_SOLVERS.get(challenge_type)
         if solver is None:
             if self._get_endpoint(challenge_type) == "mp_verify":
-                from awswaf.verify import network_bandwidth
+                from .verify import network_bandwidth
                 solver = network_bandwidth
             else:
                 raise ValueError(f"Unknown challenge type: {challenge_type}")

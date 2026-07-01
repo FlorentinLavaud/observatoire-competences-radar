@@ -9,7 +9,7 @@ Usage :
 from __future__ import annotations
 
 import os, sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # permet "from awswaf.aws import ..."
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # allow direct script execution fallback for local `awswaf` package
 
 import argparse
 import asyncio
@@ -414,7 +414,6 @@ class WafCookieManager:
 
     @staticmethod
     async def _resolve_waf() -> str:
-        from awswaf.aws import AwsWaf
         from curl_cffi.requests import AsyncSession
 
         log.info("Résolution AWS WAF via solver cryptographique...")
@@ -440,6 +439,11 @@ class WafCookieManager:
         challenge_js = js_resp.text
 
         log.info(f"challenge.js téléchargé ({len(challenge_js)} chars) — host: {waf_host}")
+
+        try:
+            from .awswaf.aws import AwsWaf
+        except ImportError:
+            from awswaf.aws import AwsWaf
 
         token = AwsWaf(waf_host, WafCookieManager.WAF_DOMAIN, challenge_js)()
 

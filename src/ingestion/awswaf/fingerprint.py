@@ -3,7 +3,7 @@ import random
 import time
 import uuid
 import zlib
-from awswaf.crypto import encrypt
+from .crypto import encrypt
 
 
 def encode_with_crc(obj):

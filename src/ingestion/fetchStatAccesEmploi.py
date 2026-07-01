@@ -15,7 +15,7 @@ from src.utils.logger import logger
 
 
 BASE_URL = "https://api.francetravail.io/partenaire/acces-emploi-demandeurs-emploi/v1"
-TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
+TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire"
 SCOPE = "api_acces-emploi-demandeurs-emploiv1"
 
 
@@ -25,6 +25,11 @@ class StatAccesEmploiClient:
     def __init__(self, client_id: str, client_secret: str):
         self.client_id = client_id
         self.client_secret = client_secret
+
+        if not self.client_id or not self.client_secret:
+            logger.critical("FRANCE_TRAVAIL_CLIENT_ID ou FRANCE_TRAVAIL_SECRET_KEY manquant.")
+            raise ValueError("Les identifiants France Travail sont requis pour StatAccesEmploiClient.")
+
         self._token: str | None = None
         self._token_expires_at: float = 0.0
         self.session = requests.Session()
@@ -36,22 +41,35 @@ class StatAccesEmploiClient:
         if self._token and time.time() < self._token_expires_at - 30:
             return self._token
 
-        # Correction : On passe le client_id et client_secret en HTTP Basic Auth, 
-        # et seul le scope reste dans le corps de la requête (data).
+        # Generer le token OAuth2 avec client credentials envoyés dans le corps.
+        # On utilise le même pattern que le scraper France Travail pour éviter les 400.
         resp = self.session.post(
             TOKEN_URL,
-            auth=(self.client_id, self.client_secret),
             data={
                 "grant_type": "client_credentials",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
                 "scope": SCOPE,
             },
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+            timeout=30,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as exc:
+            logger.error(
+                "Échec OAuth2 StatAccesEmploi (%s) : %s",
+                resp.status_code,
+                resp.text,
+            )
+            raise exc
         payload = resp.json()
         self._token = payload["access_token"]
-        
-        # Sécurité : Si l'API ne renvoie pas d'expires_in, on applique 1499s par défaut
+
+        # Sécurité : si l'API ne renvoie pas d'expires_in, on applique 1499s par défaut
         self._token_expires_at = time.time() + payload.get("expires_in", 1499)
         logger.debug("Token StatAccesEmploi renouvelé.")
         return self._token

@@ -98,6 +98,20 @@ python src/ingestion/fetchEmploiIndustrie.py --to-parquet
 dbt run --project-dir dbt_project --profiles-dir dbt_project
 ```
 
+### Déploiement Docker
+
+**Linux/macOS**
+
+```bash
+bash deploy.sh
+```
+
+**Windows PowerShell**
+
+```powershell
+./deploy.ps1
+```
+
 ---
 
 ## Structure du projet

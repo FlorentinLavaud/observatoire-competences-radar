@@ -7,8 +7,14 @@ Pipeline Dagster — Observatoire Compétences Radar
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from dagster import get_dagster_logger, job, op
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement pour Dagster (si .env est présent)
+DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(DOTENV_PATH)
 
 from src.ingestion.fetchFT import FranceTravailManufacturingScraper
 from src.ingestion.fetchStatAccesEmploi import StatAccesEmploiClient

@@ -1,6 +1,10 @@
 from dagster import schedule
 
-from src.orchestration.dagster_pipeline import france_travail_pipeline, job_stat_acces_emploi
+from src.orchestration.dagster_pipeline import (
+    france_travail_pipeline,
+    industrie_employment_pipeline,
+    job_stat_acces_emploi,
+)
 
 
 @schedule(
@@ -9,6 +13,15 @@ from src.orchestration.dagster_pipeline import france_travail_pipeline, job_stat
     execution_timezone="Europe/Paris",
 )
 def daily_france_travail_schedule(_context):
+    return {}
+
+
+@schedule(
+    job=industrie_employment_pipeline,
+    cron_schedule="0 5 * * *",
+    execution_timezone="Europe/Paris",
+)
+def daily_industrie_employment_schedule(_context):
     return {}
 
 

@@ -23,6 +23,8 @@ class FranceTravailManufacturingScraper:
         self.secret_key = secret_key or os.getenv("FRANCE_TRAVAIL_SECRET_KEY")
         self.token: Optional[str] = None
         self.headers: Dict[str, str] = {}
+        self.session = requests.Session()
+        self.timeout = (10, 30)
 
         if not self.client_id or not self.secret_key:
             logger.critical("Impossible d'initialiser le scraper : identifiants manquants.")
@@ -83,29 +85,50 @@ class FranceTravailManufacturingScraper:
 
             try:
                 logger.debug(f"Secteur {sector_code} : Requête sur la plage {start_index}-{end_index}")
-                response = requests.get(self.SEARCH_URL, headers=self.headers, params=querystring)
-                
+                response = self.session.get(
+                    self.SEARCH_URL,
+                    headers=self.headers,
+                    params=querystring,
+                    timeout=self.timeout,
+                )
+
                 if response.status_code == 204:
                     logger.debug(f"Fin ou absence de données (204) pour le secteur {sector_code}.")
                     break
 
-                # 200 = Tout est récupéré, 206 = Contenu partiel (il reste des pages)
                 if response.status_code in [200, 206]:
-                    data = response.json()
+                    try:
+                        data = response.json()
+                    except ValueError:
+                        logger.error(
+                            f"Réponse non JSON pour le secteur {sector_code} à l'index {start_index} : {response.text[:200]}"
+                        )
+                        break
+
                     page_results = data.get("resultats", [])
                     results.extend(page_results)
-                    
+
                     if response.status_code == 200 or len(page_results) < 150:
-                        # Si l'API renvoie un code 200 ou moins de 150 lignes, on a atteint la fin
                         break
-                        
+
                     start_index += 150
-                    time.sleep(0.15) # Quota protection (10 req/sec max)
+                    time.sleep(0.15)
                 else:
+                    logger.warning(
+                        f"Code inattendu {response.status_code} pour secteur {sector_code} à l'index {start_index}."
+                    )
                     response.raise_for_status()
 
+            except requests.exceptions.Timeout as e:
+                logger.warning(
+                    f"Timeout sur le secteur {sector_code} à l'index {start_index} : {e}. Reprise après pause."
+                )
+                time.sleep(5)
+                continue
             except requests.exceptions.RequestException as e:
-                logger.error(f"Erreur lors du requêtage du secteur {sector_code} à l'index {start_index}: {e}")
+                logger.error(
+                    f"Erreur lors du requêtage du secteur {sector_code} à l'index {start_index}: {e}"
+                )
                 break
 
         return results

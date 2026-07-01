@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(DOTENV_PATH)
 
+from src.ingestion.fetchEmploiIndustrie import LindustrieScraper
 from src.ingestion.fetchFT import FranceTravailManufacturingScraper
 from src.ingestion.fetchStatAccesEmploi import StatAccesEmploiClient
 from src.models import StatAccesEmploi
@@ -66,10 +67,26 @@ def persist_to_duckdb(records: list[dict]) -> str:
     return DB_PATH
 
 
+@op
+def fetch_industry_offers() -> str:
+    """Lance le scraper de l'emploi industrie et écrit les résultats sur disque."""
+    scraper = LindustrieScraper()
+    scraper.run_sync()
+    output_path = scraper.output_path
+    logger.info(f"Scraper emploi industrie terminé. JSONL path: {output_path}")
+    return str(output_path)
+
+
 @job
 def france_travail_pipeline():
     """Pipeline d'ingestion France Travail → DuckDB → dbt."""
     persist_to_duckdb(fetch_manufacturing_offers())
+
+
+@job
+def industrie_employment_pipeline():
+    """Pipeline de scraping l'emploi dans l'industrie."""
+    fetch_industry_offers()
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """
 Client API France Travail — Accès à l'emploi des demandeurs d'emploi
 Endpoint : GET /partenaire/acces-emploi-demandeurs-emploi/v1/stat
-Scope    : api_acces-emploi-demandeurs-emploiv1
+Scope    : https://api.francetravail.io/partenaire/stats-perspectives-retour-emploi/v1/indicateur/stat-acces-emploi
 """
 from __future__ import annotations
 
@@ -15,9 +15,11 @@ from src.utils.logger import logger
 
 
 
-BASE_URL = "https://api.francetravail.io/partenaire/acces-emploi-demandeurs-emploi/v1"
-TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire"
-SCOPE = os.getenv("FRANCE_TRAVAIL_ACCES_EMPLOI_SCOPE", "api_acces-emploi-demandeurs-emploiv1")
+BASE_URL = "https://api.francetravail.io/partenaire/stats-perspectives-retour-emploi/v1/indicateur/stat-acces-emploi"
+TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
+# Scope compatible avec la documentation France Travail pour l'endpoint Accès à l'emploi.
+SCOPES = ["retouremploi", "api_stats-perspectives-retour-emploiv1"]
+SCOPE = " ".join(SCOPES)
 
 
 class StatAccesEmploiClient:
@@ -42,8 +44,7 @@ class StatAccesEmploiClient:
         if self._token and time.time() < self._token_expires_at - 30:
             return self._token
 
-        # Generer le token OAuth2 avec client credentials envoyés dans le corps.
-        # On utilise le même pattern que le scraper France Travail pour éviter les 400.
+        # Génère le token OAuth2 avec les scopes documentés par France Travail.
         logger.debug("OAuth2 StatAccesEmploi demande de token avec scope=%s", SCOPE)
         resp = self.session.post(
             TOKEN_URL,
@@ -69,7 +70,10 @@ class StatAccesEmploiClient:
             )
             raise exc
         payload = resp.json()
-        self._token = payload["access_token"]
+        self._token = payload.get("access_token")
+        if not self._token:
+            logger.error("Réponse OAuth2 sans access_token : %s", payload)
+            raise ValueError("Réponse OAuth2 invalide : access_token manquant")
 
         # Sécurité : si l'API ne renvoie pas d'expires_in, on applique 1499s par défaut
         self._token_expires_at = time.time() + payload.get("expires_in", 1499)
@@ -110,28 +114,41 @@ class StatAccesEmploiClient:
         self,
         code_rome: str | None = None,
         code_departement: str | None = None,
-        annee: int | None = None,
-        duree_acces_emploi: int = 6,   # 6 ou 12 mois
-        type_sortie: str | None = None,
+        code_type_territoire: str = "REG",
+        code_type_activite: str = "ROME",
+        code_type_periode: str = "TRIMESTRE",
+        code_type_nomenclature: str = "DUREEEMP",
+        derniere_periode: bool | None = None,
+        liste_code_periode: list[str] | None = None,
+        liste_code_nomenclature: list[str] | None = None,
+        sans_caracteristiques: bool | None = None,
     ) -> dict:
         """
-        Appelle rechercherStatAccesEmploi.
+        Appelle l'endpoint POST de France Travail avec un body JSON conforme à la documentation.
         Retourne le JSON brut de l'API.
         """
-        params: dict = {"dureeAccesEmploi": duree_acces_emploi}
-        if code_rome:
-            params["codeRome"] = code_rome
-        if code_departement:
-            params["codeDepartement"] = code_departement
-        if annee:
-            params["annee"] = annee
-        if type_sortie:
-            params["typeSortie"] = type_sortie
+        payload: dict = {
+            "codeTypeTerritoire": code_type_territoire,
+            "codeTerritoire": code_departement,
+            "codeTypeActivite": code_type_activite,
+            "codeActivite": code_rome,
+            "codeTypePeriode": code_type_periode,
+            "codeTypeNomenclature": code_type_nomenclature,
+        }
 
-        resp = self.session.get(
-            f"{BASE_URL}/stat",
-            headers=self._headers(),
-            params=params,
+        if derniere_periode is not None:
+            payload["dernierePeriode"] = derniere_periode
+        if liste_code_periode:
+            payload["listeCodePeriode"] = liste_code_periode
+        if liste_code_nomenclature:
+            payload["listeCodeNomenclature"] = liste_code_nomenclature
+        if sans_caracteristiques is not None:
+            payload["sansCaracteristiques"] = sans_caracteristiques
+
+        resp = self.session.post(
+            BASE_URL,
+            headers={**self._headers(), "Content-Type": "application/json"},
+            json=payload,
             timeout=30,
         )
         resp.raise_for_status()

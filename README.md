@@ -216,11 +216,16 @@ data/
 - DuckDB sur GCP pour le stockage
 - Orchestration avec Dagster
 - Déploiement sur OVH Cloud
-
+- Note : use polars à la place de pandas, askip ça va + vite
 ---
 
 ## TODO
-- [ ] Vérification des run en local 
+- [ ] Vérification des run en local  
+-- 2026-07-02 11:04:57,012 [ERROR] rechercher_stat_acces_emploi() got an unexpected keyword argument 'duree_acces_emploi'  
+-- Fetch API FR :ok:  
+-- Fetch Emploi Industrie :ok:   
+
 - [ ] OVH set up pour stocker les données
-- [ ] Déployer la pipeline avec serveur GCP
+- [ ] Ecrire tests unitaires & intégrations
+- [ ] Déployer la pipeline avec serveur GCP (pas en local!)
 - [ ] Fusion des DB France Travail + Emploi Industrie (déduplication, détection code ROME, Ajout SIREN, Ajout NAF)

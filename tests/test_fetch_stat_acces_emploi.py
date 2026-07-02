@@ -21,6 +21,20 @@ class StatAccesEmploiClientTests(unittest.TestCase):
             "retouremploi api_stats-perspectives-retour-emploiv1",
         )
 
+    def test_iter_stats_industrie_does_not_forward_duration_to_request(self):
+        client = StatAccesEmploiClient("client-id", "client-secret")
+
+        def fake_rechercher_stat_acces_emploi(*, code_rome=None, code_departement=None, **kwargs):
+            self.assertNotIn("duree_acces_emploi", kwargs)
+            return [{"code": "ok"}]
+
+        client.rechercher_stat_acces_emploi = fake_rechercher_stat_acces_emploi
+
+        rows = list(client.iter_stats_industrie(["A1234"], ["01"], duree_acces_emploi=6, sleep_between=0))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["_duree_mois"], 6)
+
 
 if __name__ == "__main__":
     unittest.main()

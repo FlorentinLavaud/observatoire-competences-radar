@@ -179,7 +179,6 @@ class StatAccesEmploiClient:
                     data = self.rechercher_stat_acces_emploi(
                         code_rome=rome,
                         code_departement=dept,
-                        duree_acces_emploi=duree_acces_emploi,
                     )
                     # Normalise en liste de lignes plates
                     resultats = data if isinstance(data, list) else data.get("resultats", [data])

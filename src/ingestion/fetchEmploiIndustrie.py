@@ -47,6 +47,7 @@ RETRY_BASE_DELAY = 1.5
 RATE_SLEEP_MIN   = 0.05
 RATE_SLEEP_MAX   = 0.25
 WAF_COOKIE_TTL   = 3_600   # secondes avant renouvellement préventif
+WAF_MAX_REFRESHES = 3
 
 # ─── Anti-DDoS / politeness ────────────────────────────────────────────────────
 GLOBAL_RATE_PER_SEC = 3.0   # débit cible GLOBAL (toutes coroutines confondues)
@@ -401,6 +402,7 @@ class WafCookieManager:
         self._cookie: Optional[str] = None
         self._fetched_at: float = 0.0
         self._lock = asyncio.Lock()
+        self._refresh_count = 0
 
     def _is_expired(self) -> bool:
         return (time.monotonic() - self._fetched_at) > WAF_COOKIE_TTL
@@ -408,6 +410,7 @@ class WafCookieManager:
     async def get_cookie(self, force: bool = False) -> str:
         async with self._lock:
             if self._cookie is None or self._is_expired() or force:
+                self._refresh_count += 1
                 self._cookie = await self._resolve_waf()
                 self._fetched_at = time.monotonic()
             return self._cookie
@@ -486,6 +489,7 @@ class LindustrieScraper:
             "not_found": 0, "errors": 0, "waf_refresh": 0,
             "throttled": 0,
         }
+        self._waf_refreshes_by_offer: Dict[int, int] = {}
 
     # ── checkpoint ────────────────────────────────────────────────────────────
 
@@ -531,6 +535,14 @@ class LindustrieScraper:
             impersonate="chrome124",
         )
         log.info("Client reconstruit avec nouveau cookie WAF")
+
+    def _should_retry_waf(self, offer_id: int) -> bool:
+        count = self._waf_refreshes_by_offer.get(offer_id, 0)
+        if count >= WAF_MAX_REFRESHES:
+            log.warning(f"[{offer_id}] Trop de refresh WAF, abandon de la boucle")
+            return False
+        self._waf_refreshes_by_offer[offer_id] = count + 1
+        return True
 
     # ── fetch ─────────────────────────────────────────────────────────────────
 
@@ -587,6 +599,10 @@ class LindustrieScraper:
 
                 if result == "waf":
                     log.warning(f"[{offer_id}] WAF détecté → renouvellement cookie")
+                    if not self._should_retry_waf(offer_id):
+                        self.stats["errors"] += 1
+                        self._queue.task_done()
+                        continue
                     await self._refresh_client()
                     await self._queue.put(offer_id)
                     self._queue.task_done()

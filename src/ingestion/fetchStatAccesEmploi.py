@@ -114,7 +114,7 @@ class StatAccesEmploiClient:
         self,
         code_rome: str | None = None,
         code_departement: str | None = None,
-        code_type_territoire: str = "REG",
+        code_type_territoire: str | None = None,
         code_type_activite: str = "ROME",
         code_type_periode: str = "TRIMESTRE",
         code_type_nomenclature: str = "DUREEEMP",
@@ -127,6 +127,12 @@ class StatAccesEmploiClient:
         Appelle l'endpoint POST de France Travail avec un body JSON conforme à la documentation.
         Retourne le JSON brut de l'API.
         """
+        if code_type_territoire is None:
+            if code_departement and code_departement.isdigit() and len(code_departement) == 2:
+                code_type_territoire = "DEP"
+            else:
+                code_type_territoire = "REG"
+
         payload: dict = {
             "codeTypeTerritoire": code_type_territoire,
             "codeTerritoire": code_departement,

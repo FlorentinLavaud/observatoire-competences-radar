@@ -35,6 +35,20 @@ class StatAccesEmploiClientTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["_duree_mois"], 6)
 
+    def test_rechercher_stat_acces_emploi_uses_department_territory_by_default(self):
+        client = StatAccesEmploiClient("client-id", "client-secret")
+        client._get_token = Mock(return_value="abc123")
+
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"resultats": []}
+        client.session.post = Mock(return_value=mock_response)
+
+        client.rechercher_stat_acces_emploi(code_rome="A1234", code_departement="73")
+
+        _, kwargs = client.session.post.call_args
+        self.assertEqual(kwargs["json"]["codeTypeTerritoire"], "DEP")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,7 @@
 # Observatoire Compétences Radar — Pipeline Data
 
+⚠️ REPO EN DEVELOPPEMENT
+
 Pipeline d'ingestion et transformation des offres d'emploi de la filière **industrie manufacturière** (INSEE Section C, divisions 10-33) via l'API **France Travail v2** et le scraper **lindustrie-recrute.fr**.
 
 **Architecture simplifiée:**

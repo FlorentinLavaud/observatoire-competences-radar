@@ -223,11 +223,11 @@ data/
 
 ## TODO
 - [ ] Vérification des run en local  
--- 2026-07-02 11:04:57,012 [ERROR] rechercher_stat_acces_emploi() got an unexpected keyword argument 'duree_acces_emploi'  
+-- 2026-07-02 11:04:57,012 [ERROR] rechercher_stat_acces_emploi() got an unexpected keyword argument 'duree_acces_emploi' :ok:
 -- Fetch API FR :ok:  
 -- Fetch Emploi Industrie :ok:   
 
-- [ ] OVH set up pour stocker les données
+- [ ] OVH set up pour stocker les données :ok:
 - [ ] Ecrire tests unitaires & intégrations
 - [ ] Déployer la pipeline avec serveur GCP (pas en local!)
 - [ ] Fusion des DB France Travail + Emploi Industrie (déduplication, détection code ROME, Ajout SIREN, Ajout NAF)

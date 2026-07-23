@@ -1,5 +1,7 @@
 # Observatoire Compétences Radar — Pipeline Data
 
+⚠️ REPO EN DEVELOPPEMENT
+
 Pipeline d'ingestion et transformation des offres d'emploi de la filière **industrie manufacturière** (INSEE Section C, divisions 10-33) via l'API **France Travail v2** et le scraper **lindustrie-recrute.fr**.
 
 **Architecture simplifiée:**
@@ -220,7 +222,16 @@ data/
 ---
 
 ## TODO
+<<<<<<< HEAD
 - [ ] OVH set up pour stocker les données
+=======
+- [ ] Vérification des run en local  
+-- 2026-07-02 11:04:57,012 [ERROR] rechercher_stat_acces_emploi() got an unexpected keyword argument 'duree_acces_emploi' :ok:
+-- Fetch API FR :ok:  
+-- Fetch Emploi Industrie :ok:   
+
+- [ ] OVH set up pour stocker les données :ok:
+>>>>>>> 3a40018925aca74559a5426b5db472da20d0fa74
 - [ ] Ecrire tests unitaires & intégrations
 - [ ] Déployer la pipeline avec serveur GCP (pas en local!)
 - [ ] Fusion des DB France Travail + Emploi Industrie (déduplication, détection code ROME, Ajout SIREN, Ajout NAF)
